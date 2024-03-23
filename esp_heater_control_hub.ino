@@ -33,6 +33,11 @@
 #define ICO_TEMP_100 "f2c7"     // градусник 100%
 #define ICO_WIFI "f1eb"         // уровень сигнала
 
+// периоды мигания светодиодом в зависимости от режима работы
+
+#define WIFI_STA_BLINK 2000
+#define WIFI_AP_BLINK 800
+#define WIFI_BLINK_ON 100
 
 #include <Arduino.h>
 #include <GyverHub.h>
@@ -40,6 +45,9 @@ GyverHub hub;
 
 #include <PairsFile.h>
 PairsFile wifiConfig(&GH_FS, "/config/wifi.dat", 3000);
+
+#include <Blinker.h>
+Blinker led(LED_BUILTIN);
 
 static String wifi_SSID;
 static String wifi_PASS;
@@ -53,12 +61,32 @@ void build(gh::Builder& b) {
     if (b.Tabs(&tab).text("Состояние;Параметры;Настройки").noLabel().noTab().click()) b.refresh();
 
     b.show(tab == 0);
+
+    // Вкладка "Состояние"
+
+    // Состоянте (греем/ждем)
+    // Режим (ручной/авто/умный)
+    // Требуемая температура помещения
+    // Фактическая температура помещения
+    // Фактическая температура прибора отопления
+    // График температур за последние сутки/недлелю/месяц*
+    // Быстрое изменение температуры
+    // Включение/выключение
     b.Spinner();
 
     b.show(tab == 1);
+
+    // Вкладка "Параметры"
+
+    // Настройки режима "АВТО"
+    // Настройки режима "Умный"
+    // Настройки предельных значений
+
     b.Slider();
 
     b.show(tab == 2);
+
+    // Вкладка "Настройки"
 
     // Форма ввода настроек wifi
     b.beginRow();
@@ -129,6 +157,7 @@ void setup() {
         while (--wifi_connect_attempts && WiFi.status() != WL_CONNECTED) {
             delay(500);
             Serial.print(".");
+            digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
         }
     }
     if (WiFi.status() != WL_CONNECTED) {
@@ -141,17 +170,16 @@ void setup() {
     Serial.println();
     Serial.println(WiFi.localIP());
   
+    led.invert(true);
+    led.blinkForever(WIFI_BLINK_ON, WiFi.getMode() == WIFI_AP ? WIFI_AP_BLINK : WIFI_STA_BLINK);
 #endif
 
 }
 
 void loop() {
-    // 
+    // тикеры модулей
     hub.tick();
     wifiConfig.tick();
+    led.tick();
 
-    static gh::Timer tmr(500);
-    if (tmr) {
-        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-    }
 }
