@@ -1,3 +1,39 @@
+/*
+
+*/
+// Иконки элементов управления
+
+#define ICO_APP "f185"          // иконка устройства
+#define ICO_AUTO "f6e8"         // автоматический режим
+#define ICO_CALEND "f073"       // календарь
+#define ICO_CLK "f017"          // часы
+#define ICO_COOLANT "f773"      // теплоноситель
+#define ICO_DASH "f3fd"         // приборная панель
+#define ICO_ECO "f4d8"          // энергосбережение
+#define ICO_FIRE "f7e4"         // нагрев
+#define ICO_INDOOR "f015"       // в помещении
+#define ICO_LGHT "f0eb"         // освещение
+#define ICO_MAGIC "f0d0"        // умный режим
+#define ICO_MANUAL "f256"       // ручной режим
+#define ICO_MINUS "f068"        // уменьшить
+#define ICO_PRCNT "f541"        // процент
+#define ICO_PLUS "f067"         // увеличить
+#define ICO_PWR "f011"          // включить/выключить
+#define ICO_SAVE "f0c7"         // сохранить
+#define ICO_STNGS "f085"        // настройки
+#define ICO_SLDR "f1de"         // слайдеры
+#define ICO_SNOW "f2dc"         // холодно (снежинка)
+#define ICO_STOP "f04d"         // остановить
+#define ICO_TEMP_HI "f769"      // градусник высокая температура
+#define ICO_TEMP_LO "f76b"      // градусник низкая температура
+#define ICO_TERM_000 "f2cb"     // градусник 0%
+#define ICO_TEMP_025 "f2ca"     // градусник 25%
+#define ICO_TEMP_050 "f2c9"     // градусник 50%
+#define ICO_TEMP_075 "f2c8"     // градусник 75%
+#define ICO_TEMP_100 "f2c7"     // градусник 100%
+#define ICO_WIFI "f1eb"         // уровень сигнала
+
+
 #include <Arduino.h>
 #include <GyverHub.h>
 GyverHub hub;
@@ -49,7 +85,7 @@ void build(gh::Builder& b) {
         }
     }
 
-    if (b.Button().icon("f0c7").noLabel().noTab().size(1, 80).click()) {
+    if (b.Button().icon(ICO_SAVE).noLabel().noTab().size(1, 80).click()) {
         if (!wifi_SSID.isEmpty()) {
             hub.sendAction("wifiUpd");
         } else {
@@ -71,7 +107,7 @@ void setup() {
 
 
     // указать префикс сети, имя устройства и иконку
-    hub.config(F("MyDevices"), F("Heater"), F("f185"));
+    hub.config(F("MyDevices"), F("Heater"), F(ICO_APP));
 
     // подключить билдер
     hub.onBuild(build);
