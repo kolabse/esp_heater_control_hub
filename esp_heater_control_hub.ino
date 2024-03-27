@@ -1,7 +1,7 @@
 /*
 
 */
-// Иконки элементов управления
+// Иконки элементов управления  https://fontawesome.com/v5/search?o=r&m=free&s=solid
 
 #define ICO_APP "f185"          // иконка устройства
 #define ICO_AUTO "f6e8"         // автоматический режим
@@ -23,6 +23,8 @@
 #define ICO_STNGS "f085"        // настройки
 #define ICO_SLDR "f1de"         // слайдеры
 #define ICO_SNOW "f2dc"         // холодно (снежинка)
+#define ICO_STEP_BKWD "f048"    // шаг назад
+#define ICO_STEP_FWD "f051"     // шаг вперед
 #define ICO_STOP "f04d"         // остановить
 #define ICO_TEMP_HI "f769"      // градусник высокая температура
 #define ICO_TEMP_LO "f76b"      // градусник низкая температура
@@ -54,25 +56,45 @@ static String wifi_PASS;
 static uint8_t wifi_connect_attempts = 10;
 static bool cnfWiFiUpd;
 
+static uint8_t minTargetTemp = 5;
+static uint8_t targetTemp = 22;
+static uint8_t maxTargetTemp = 35;
+
 // билдер
 void build(gh::Builder& b) {
     static byte tab;
-    b.Title_("mainHeader", "Нагреватель").size(3);
-    if (b.Tabs(&tab).text("Состояние;Параметры;Настройки").noLabel().noTab().click()) b.refresh();
+    if (b.Tabs(&tab).text("Состояние;Параметры;Настройки").fontSize(10).noLabel().noTab().click()) b.refresh();
 
     b.show(tab == 0);
 
     // Вкладка "Состояние"
 
     // Состоянте (греем/ждем)
+    b.beginRow();
+    b.Label_(F("state")).value("Ожидание").fontSize(14).label("Состояние").noTab().size(8);
+
     // Режим (ручной/авто/умный)
+    b.Button().noLabel().noTab().icon(ICO_STEP_BKWD).size(1).fontSize(25);
+    b.Display_("mode", "АВТО").noTab().label("Режим").size(3);
+    b.Button().noLabel().noTab().icon(ICO_STEP_FWD).size(1).fontSize(25);
+    b.endRow();
+
+    b.beginRow();
+    if (b.Button().noLabel().noTab().icon(ICO_MINUS).fontSize(25).size(1).click()) {
+        hub.update("targetTemp").value((targetTemp > minTargetTemp) ? --targetTemp : targetTemp);
+    }
+    b.GaugeLinear_(F("targetTemp"), &targetTemp).range(minTargetTemp, maxTargetTemp, 1, 0).size(6).label("Желаемая температура").noTab();
+    if (b.Button().noLabel().noTab().icon(ICO_PLUS).fontSize(25).size(1).click()) {
+        hub.update("targetTemp").value((targetTemp < maxTargetTemp) ? ++targetTemp : targetTemp);
+    }
+    
+    b.endRow();
     // Требуемая температура помещения
     // Фактическая температура помещения
     // Фактическая температура прибора отопления
     // График температур за последние сутки/недлелю/месяц*
     // Быстрое изменение температуры
     // Включение/выключение
-    b.Spinner();
 
     b.show(tab == 1);
 
