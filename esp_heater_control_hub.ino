@@ -1,5 +1,5 @@
 /*
-
+    Панель управления прибором отопления на основе GyverHUB
 */
 // Иконки элементов управления  https://fontawesome.com/v5/search?o=r&m=free&s=solid
 
@@ -37,9 +37,9 @@
 
 // периоды мигания светодиодом в зависимости от режима работы
 
-#define WIFI_STA_BLINK 2000
+#define WIFI_STA_BLINK 2970
 #define WIFI_AP_BLINK 800
-#define WIFI_BLINK_ON 100
+#define WIFI_BLINK_ON 30
 
 #include <Arduino.h>
 #include <GyverHub.h>
@@ -51,6 +51,8 @@ PairsFile wifiConfig(&GH_FS, "/config/wifi.dat", 3000);
 #include <Blinker.h>
 Blinker led(LED_BUILTIN);
 
+#include <GyverNTP.h>
+
 static String wifi_SSID;
 static String wifi_PASS;
 static uint8_t wifi_connect_attempts = 10;
@@ -60,10 +62,51 @@ static uint8_t minTargetTemp = 5;
 static uint8_t targetTemp = 22;
 static uint8_t maxTargetTemp = 35;
 
+static int8_t currentMode = 0;
+static uint8_t modesCount = 3;
+
+static int8_t defaultGMT = 3;
+static gh::Timer updateTmr(1000);
+
+GyverNTP ntp(defaultGMT);
+
+// сопоставление цветов температуре
+gh::Colors tempColor(uint8_t temp) {
+    gh::Colors colors[] = {
+        gh::Colors::Pink,
+        gh::Colors::Violet,
+        gh::Colors::Blue,
+        gh::Colors::Aqua,
+        gh::Colors::Mint,
+        gh::Colors::Green,
+        gh::Colors::Yellow,
+        gh::Colors::Orange,
+        gh::Colors::Red
+    };
+    return colors[map(temp, minTargetTemp, maxTargetTemp, 0, sizeof(colors)/sizeof(*colors)-1)];
+}
+
+FSTR __attribute__((weak)) modeName(uint8_t mode) {
+    switch (mode) {
+        case 0: return F("АВТО");
+        case 1: return F("Ручной");
+        case 2: return F("Умный");
+        default: return F("Нет данных");
+    }
+}
+
 // билдер
 void build(gh::Builder& b) {
+
     static byte tab;
-    if (b.Tabs(&tab).text("Состояние;Параметры;Настройки").fontSize(10).noLabel().noTab().click()) b.refresh();
+    if (b.Tabs_(F("mainTabs"), &tab)
+        .text("Состояние;Параметры;Настройки")
+        .fontSize(10)
+        .label(ntp.timeString())
+        .suffix(ntp.dateString())
+        .noTab()
+        .click()
+    ) b.refresh();
 
     b.show(tab == 0);
 
@@ -71,26 +114,39 @@ void build(gh::Builder& b) {
 
     // Состоянте (греем/ждем)
     b.beginRow();
-    b.Label_(F("state")).value("Ожидание").fontSize(14).label("Состояние").noTab().size(8);
+    b.Label_(F("state")).value("Ожидание").fontSize(18).label("Состояние").noTab().size(3);
 
     // Режим (ручной/авто/умный)
-    b.Button().noLabel().noTab().icon(ICO_STEP_BKWD).size(1).fontSize(25);
-    b.Display_("mode", "АВТО").noTab().label("Режим").size(3);
-    b.Button().noLabel().noTab().icon(ICO_STEP_FWD).size(1).fontSize(25);
+    if (b.Button().noLabel().noTab().icon(ICO_STEP_BKWD).size(1).fontSize(25).click()) {
+        if (--currentMode < 0) currentMode = modesCount - 1;
+        hub.update(F("mode")).value(modeName(currentMode));
+    }
+    b.Label_(F("mode")).value(modeName(currentMode)).fontSize(18).label("Режим").size(3);
+    if (b.Button().noLabel().noTab().icon(ICO_STEP_FWD).size(1).fontSize(25).click()) {
+        if (++currentMode > modesCount - 1) currentMode = 0;
+        hub.update(F("mode")).value(modeName(currentMode));
+    }
     b.endRow();
 
+    // Требуемая температура помещения
     b.beginRow();
     if (b.Button().noLabel().noTab().icon(ICO_MINUS).fontSize(25).size(1).click()) {
-        hub.update("targetTemp").value((targetTemp > minTargetTemp) ? --targetTemp : targetTemp);
+        hub.update(F("targetTemp")).value((targetTemp > minTargetTemp) ? --targetTemp : targetTemp).color(tempColor(targetTemp));
     }
-    b.GaugeLinear_(F("targetTemp"), &targetTemp).range(minTargetTemp, maxTargetTemp, 1, 0).size(6).label("Желаемая температура").noTab();
+    b.GaugeLinear_(F("targetTemp"), &targetTemp)
+        .color(tempColor(targetTemp))
+        .range(minTargetTemp, maxTargetTemp, 1, 0)
+        .size(6)
+        .label("Желаемая температура")
+        .noTab();
     if (b.Button().noLabel().noTab().icon(ICO_PLUS).fontSize(25).size(1).click()) {
-        hub.update("targetTemp").value((targetTemp < maxTargetTemp) ? ++targetTemp : targetTemp);
+        hub.update(F("targetTemp")).value((targetTemp < maxTargetTemp) ? ++targetTemp : targetTemp).color(tempColor(targetTemp));
     }
-    
     b.endRow();
-    // Требуемая температура помещения
+    
     // Фактическая температура помещения
+
+
     // Фактическая температура прибора отопления
     // График температур за последние сутки/недлелю/месяц*
     // Быстрое изменение температуры
@@ -135,7 +191,7 @@ void build(gh::Builder& b) {
         }
     }
 
-    if (b.Button().icon(ICO_SAVE).noLabel().noTab().size(1, 80).click()) {
+    if (b.Button().icon(ICO_SAVE).fontSize(25).noLabel().noTab().size(1, 80).click()) {
         if (!wifi_SSID.isEmpty()) {
             hub.sendAction("wifiUpd");
         } else {
@@ -150,11 +206,14 @@ void build(gh::Builder& b) {
 
 }
 
+void infoUpdate() {
+    hub.update(F("mainTabs")).label(ntp.timeString()).suffix(ntp.dateString());
+    //...
+}
+
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
-
-
 
     // указать префикс сети, имя устройства и иконку
     hub.config(F("MyDevices"), F("Heater"), F(ICO_APP));
@@ -194,6 +253,8 @@ void setup() {
   
     led.invert(true);
     led.blinkForever(WIFI_BLINK_ON, WiFi.getMode() == WIFI_AP ? WIFI_AP_BLINK : WIFI_STA_BLINK);
+
+    ntp.begin();
 #endif
 
 }
@@ -203,5 +264,6 @@ void loop() {
     hub.tick();
     wifiConfig.tick();
     led.tick();
-
+    ntp.tick();
+    if (updateTmr.tick()) infoUpdate();
 }
